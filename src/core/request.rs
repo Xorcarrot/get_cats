@@ -5,15 +5,17 @@ use reqwest::Client;
 use super::tools::Help;
 
 #[derive(Debug)]
-pub struct Image {
+pub struct Worker {
     pub path: String,
     pub number: Option<u32>,
     resolution: Option<u16>,
+    query: Option<String>,
 }
 
-impl Image {
+impl Worker {
     fn create_url(&self) -> String {
-        let mut url = "https://api.ai-cats.net/v1/cat?theme=All".to_string();
+        let query = self.query.clone().unwrap_or("All".to_string());
+        let mut url = format!("https://api.ai-cats.net/v1/cat?theme={query}");
 
         if let Some(resolution) = self.resolution {
             url = format!("{url}&size={resolution}");
@@ -41,11 +43,12 @@ impl Image {
         }
     }
 
-    pub fn new(args: Args) -> Option<Image> {
+    pub fn new(args: Args) -> Option<Worker> {
         let mut path: String = "".to_string();
 
         let mut number: Option<u32> = None;
         let mut resolution: Option<u16> = None;
+        let mut query: Option<String> = None;
 
         let mut index: usize = 0;
         let args: Vec<String> = args.collect();
@@ -53,22 +56,29 @@ impl Image {
         while index < args.len() {
             let arg = args[index].clone();
 
+            //Prints help for the User
             if arg.contains("-h") || arg.contains("--help") {
                 Help::get_help();
                 return None;
             }
-
-            if arg.contains("--res") {
+            //Collects the optional selected theme
+            else if arg.contains("--thm") {
                 index += 1;
 
                 let Some(arg) = args.get(index) else {
-                    println!("No value found after --res.");
+                    println!("No value found after --thm.");
                     continue
                 };
 
-                let Ok(arg) = arg.parse() else {
-                    println!("Value is no number.");
-                    continue;
+                query = Some(arg.to_string());
+            }
+            //Collects the optional selected resolution
+            else if arg.contains("--res") {
+                index += 1;
+
+                let Ok(arg) = args.get(index)?.parse() else {
+                    println!("No value found or not a number after --res.");
+                    continue
                 };
 
                 let Some(arg) = check_resolution(arg) else {
@@ -78,58 +88,48 @@ impl Image {
 
                 resolution = Some(arg);
 
-            } else if arg.contains("--sum") {
+            }
+            //Collects the optional number of images
+            else if arg.contains("--sum") {
                 index += 1;
 
-                let Some(arg) = args.get(index) else {
-                    println!("No value found after --sum.");
+                let Ok(arg) = args.get(index)?.parse() else {
+                    println!("No value found or not a number after --sum.");
                     continue
-                };
-
-                let Ok(arg) = arg.parse() else {
-                    println!("Value is no number.");
-                    continue;
-                };
-
-                let Some(arg) = check_sum_is_valid(arg) else {
-                    println!("Sum should be smaller than 3000.");
-                    continue;
                 };
 
                 number = Some(arg);
 
-            } else {
-                if arg.starts_with("./") {
-                    path = arg;
-                } else if arg.starts_with("/") {
-                    path = format!(".{arg}");
-                } else {
-                    path = format!("./{arg}");
+            }
+            //Collects the selected path from the args
+            else {
+                if index <= 1 {
+                    if arg.starts_with("./") || arg.starts_with("C:") || arg.starts_with("~") {
+                        path = arg;
+                    } else if arg.starts_with("/") {
+                        path = format!(".{arg}");
+                    } else {
+                        path = format!("./{arg}");
+                    }
                 }
             }
 
             index += 1;
         };
 
-        Some(Image {
+        Some(Worker {
             path,
             number,
             resolution,
+            query
         })
     }
 }
 
+//Resolution has to be one of the preset values
 fn check_resolution(res: u16) -> Option<u16> {
     if res == 16 || res == 32 || res == 64 || res == 128 || res == 256 || res == 512 || res == 1024 {
         return Some(res);
-    };
-
-    None
-}
-
-fn check_sum_is_valid(sum: u32) -> Option<u32> {
-    if sum <= 6000 {
-        return Some(sum)
     };
 
     None
@@ -148,15 +148,5 @@ mod image_test {
     #[test]
     fn none_check_resolution() {
         assert!(check_resolution(234).is_none())
-    }
-
-    #[test]
-    fn some_check_sum_is_valid() {
-        assert!(check_sum_is_valid(435).is_some())
-    }
-
-    #[test]
-    fn none_check_sum_is_valid() {
-        assert!(check_sum_is_valid(7000).is_none())
     }
 }

@@ -1,5 +1,6 @@
 use std::fs;
 
+//Generate the dir for the user
 pub struct Directive;
 
 impl Directive {
